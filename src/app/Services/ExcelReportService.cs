@@ -55,7 +55,10 @@ public sealed class ExcelReportService
             [
                 Text("A", "图片路径", 2), Text("B", "图片名称", 2),
                 Text("C", "漏检标注信息", 2), Text("D", "误检标注信息", 2),
-                Text("E", "判定", 2)
+                Text("E", "人工判定模型结果", 2),
+                Text("F", "模型判定图片结果", 2),
+                Text("G", "人工判定图片结果", 2),
+                Text("H", "模型判断是否正确", 2)
             ])
         };
 
@@ -65,7 +68,8 @@ public sealed class ExcelReportService
             var missed = image.Annotations.Where(value => value.ReviewType == "漏检").ToList();
             var falsePositive = image.Annotations.Where(value => value.ReviewType == "误检").ToList();
             var status = GetStatus(missed.Count > 0, falsePositive.Count > 0);
-            var statusStyle = status == "ok" ? 5u : 6u;
+            var statusStyle = status == "无漏检无误检" ? 5u : 6u;
+            var isCorrect = image.ModelDecision == image.ManualDecision;
             var row = (uint)index + 3;
             rows.Add(new RowData(row,
             [
@@ -73,14 +77,19 @@ public sealed class ExcelReportService
                 Text("B", Path.GetFileName(image.FullPath), 3),
                 Text("C", FormatAnnotations(missed), 3),
                 Text("D", FormatAnnotations(falsePositive), 3),
-                Text("E", status, statusStyle)
+                Text("E", status, statusStyle),
+                Text("F", image.ModelDecision, 4),
+                Text("G", image.ManualDecision, 4),
+                FormulaText("H", $"IF(F{row}=G{row},\"正确\",\"错误\")",
+                    isCorrect ? "正确" : "错误", isCorrect ? 5u : 6u)
             ]));
         }
 
         WriteWorksheet(archive, "xl/worksheets/sheet1.xml", rows,
-            [(1, 56d), (2, 28d), (3, 34d), (4, 34d), (5, 22d)],
-            mergeReference: "A1:E1", freezeRows: 2,
-            autoFilterReference: $"A2:E{Math.Max(2, images.Count + 2)}");
+            [(1, 56d), (2, 28d), (3, 34d), (4, 34d), (5, 24d),
+                (6, 23d), (7, 23d), (8, 23d)],
+            mergeReference: "A1:H1", freezeRows: 2,
+            autoFilterReference: $"A2:H{Math.Max(2, images.Count + 2)}");
     }
 
     private static void WriteImageSummarySheet(ZipArchive archive,
@@ -100,11 +109,11 @@ public sealed class ExcelReportService
             new(1, [Text("A", "图片级汇总", 1)]),
             new(3, [Text("A", "统计项目", 2), Text("B", "图片数量", 2)]),
             new(4, [Text("A", "总图片数", 3), Formula("B", $"COUNTA({detailsNameRange})", images.Count, 4)]),
-            new(5, [Text("A", "有问题图片数", 3), Formula("B", $"COUNTIF({detailStatusRange},\"ng_*\")", states.Count(s => s.HasMissed || s.HasFalse), 4)]),
-            new(6, [Text("A", "只有漏检", 3), Formula("B", $"COUNTIF({detailStatusRange},\"ng_漏检\")", states.Count(s => s.HasMissed && !s.HasFalse), 4)]),
-            new(7, [Text("A", "只有误检", 3), Formula("B", $"COUNTIF({detailStatusRange},\"ng_误检\")", states.Count(s => !s.HasMissed && s.HasFalse), 4)]),
-            new(8, [Text("A", "同时有漏检和误检", 3), Formula("B", $"COUNTIF({detailStatusRange},\"ng_漏检+误检\")", states.Count(s => s.HasMissed && s.HasFalse), 4)]),
-            new(9, [Text("A", "没有问题", 3), Formula("B", $"COUNTIF({detailStatusRange},\"ok\")", states.Count(s => !s.HasMissed && !s.HasFalse), 4)])
+            new(5, [Text("A", "有问题图片数", 3), Formula("B", $"COUNTIF({detailStatusRange},\"漏检\")+COUNTIF({detailStatusRange},\"误检\")+COUNTIF({detailStatusRange},\"误检+漏检\")", states.Count(s => s.HasMissed || s.HasFalse), 4)]),
+            new(6, [Text("A", "只有漏检", 3), Formula("B", $"COUNTIF({detailStatusRange},\"漏检\")", states.Count(s => s.HasMissed && !s.HasFalse), 4)]),
+            new(7, [Text("A", "只有误检", 3), Formula("B", $"COUNTIF({detailStatusRange},\"误检\")", states.Count(s => !s.HasMissed && s.HasFalse), 4)]),
+            new(8, [Text("A", "同时有漏检和误检", 3), Formula("B", $"COUNTIF({detailStatusRange},\"误检+漏检\")", states.Count(s => s.HasMissed && s.HasFalse), 4)]),
+            new(9, [Text("A", "没有问题", 3), Formula("B", $"COUNTIF({detailStatusRange},\"无漏检无误检\")", states.Count(s => !s.HasMissed && !s.HasFalse), 4)])
         };
 
         WriteWorksheet(archive, "xl/worksheets/sheet2.xml", rows,
@@ -162,10 +171,10 @@ public sealed class ExcelReportService
     private static string GetStatus(bool hasMissed, bool hasFalse) =>
         (hasMissed, hasFalse) switch
         {
-            (true, true) => "ng_漏检+误检",
-            (true, false) => "ng_漏检",
-            (false, true) => "ng_误检",
-            _ => "ok"
+            (true, true) => "误检+漏检",
+            (true, false) => "漏检",
+            (false, true) => "误检",
+            _ => "无漏检无误检"
         };
 
     private static void WriteWorksheet(ZipArchive archive, string path,
@@ -252,6 +261,8 @@ public sealed class ExcelReportService
         writer.WriteStartElement("c");
         writer.WriteAttributeString("r", $"{cell.Column}{row}");
         writer.WriteAttributeString("s", cell.Style.ToString());
+        if (cell.Kind == CellKind.FormulaText)
+            writer.WriteAttributeString("t", "str");
         if (cell.Kind == CellKind.Text)
         {
             writer.WriteAttributeString("t", "inlineStr");
@@ -262,7 +273,7 @@ public sealed class ExcelReportService
             writer.WriteEndElement();
             writer.WriteEndElement();
         }
-        else if (cell.Kind == CellKind.Formula)
+        else if (cell.Kind is CellKind.Formula or CellKind.FormulaText)
         {
             writer.WriteElementString("f", cell.Value);
             writer.WriteElementString("v", cell.CachedValue ?? "0");
@@ -282,6 +293,9 @@ public sealed class ExcelReportService
 
     private static CellData Formula(string column, string formula, int cachedValue, uint style) =>
         new(column, CellKind.Formula, formula, style, cachedValue.ToString());
+
+    private static CellData FormulaText(string column, string formula, string cachedValue, uint style) =>
+        new(column, CellKind.FormulaText, formula, style, cachedValue);
 
     private static void WriteTextEntry(ZipArchive archive, string path, string content)
     {
@@ -399,7 +413,7 @@ public sealed class ExcelReportService
         </Properties>
         """;
 
-    private enum CellKind { Text, Number, Formula }
+    private enum CellKind { Text, Number, Formula, FormulaText }
     private sealed record CellData(string Column, CellKind Kind, string Value, uint Style,
         string? CachedValue = null);
     private sealed record RowData(uint Index, IReadOnlyList<CellData> Cells);

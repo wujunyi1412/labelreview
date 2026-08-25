@@ -5,16 +5,28 @@ using LabelReviewer.Models;
 using LabelReviewer.Services;
 
 var outputRoot = args.Length > 0 ? Path.GetFullPath(args[0]) : Path.GetFullPath("report-smoke-output");
-var first = new ImageItem { FullPath = @"D:\samples\line1\image001.png", RelativePath = @"line1\image001.png" };
+var first = new ImageItem
+{
+    FullPath = @"D:\samples\line1\image001.png", RelativePath = @"line1\image001.png",
+    ModelDecision = "NG", ManualDecision = "OK"
+};
 first.Annotations.Add(new Annotation { ReviewType = "漏检", Category = "类别1", Bounds = new Rectangle(1, 2, 30, 40) });
 first.Annotations.Add(new Annotation { ReviewType = "漏检", Category = "类别1", Bounds = new Rectangle(10, 20, 30, 40) });
 first.Annotations.Add(new Annotation { ReviewType = "误检", Category = "类别2", Bounds = new Rectangle(5, 6, 20, 20) });
 
-var second = new ImageItem { FullPath = @"D:\samples\line1\image002.jpg", RelativePath = @"line1\image002.jpg" };
+var second = new ImageItem
+{
+    FullPath = @"D:\samples\line1\image002.jpg", RelativePath = @"line1\image002.jpg",
+    ModelDecision = "OK", ManualDecision = "OK"
+};
 second.Annotations.Add(new Annotation { ReviewType = "误检", Category = "类别2", Bounds = new Rectangle(8, 9, 10, 11) });
 second.Annotations.Add(new Annotation { ReviewType = "误检", Category = "类别3", Bounds = new Rectangle(18, 19, 20, 21) });
 
-var third = new ImageItem { FullPath = @"D:\samples\line2\image003.bmp", RelativePath = @"line2\image003.bmp" };
+var third = new ImageItem
+{
+    FullPath = @"D:\samples\line2\image003.bmp", RelativePath = @"line2\image003.bmp",
+    ModelDecision = "NG", ManualDecision = "NG"
+};
 var path = new ExcelReportService().Save(outputRoot, [first, second, third]);
 using (var archive = ZipFile.OpenRead(path))
 {
@@ -22,11 +34,22 @@ using (var archive = ZipFile.OpenRead(path))
     var details = ReadEntry(archive, "xl/worksheets/sheet1.xml");
     AssertContains(details, "2*类别1", "漏检类别合并");
     AssertContains(details, "1*类别2+1*类别3", "误检类别合并");
-    AssertContains(details, "ng_漏检+误检", "混合问题判定");
-    AssertContains(details, ">ok<", "正常图片判定");
+    AssertContains(details, ">误检+漏检<", "混合问题判定");
+    AssertContains(details, ">误检<", "误检图片判定");
+    AssertContains(details, ">无漏检无误检<", "正常图片判定");
+    if (details.Contains("ng_", StringComparison.Ordinal))
+        throw new InvalidDataException("人工判定模型结果中仍包含旧 ng_ 前缀");
+    AssertContains(details, "人工判定模型结果", "原判定列标题");
+    AssertContains(details, "模型判定图片结果", "模型图片判定列标题");
+    AssertContains(details, "人工判定图片结果", "人工图片判定列标题");
+    AssertContains(details, "模型判断是否正确", "模型正确性列标题");
+    AssertContains(details, "IF(F3=G3,\"正确\",\"错误\")", "模型正确性公式");
+    AssertContains(details, ">错误<", "错误比较结果");
+    AssertContains(details, ">正确<", "正确比较结果");
     var imageSummary = ReadEntry(archive, "xl/worksheets/sheet2.xml");
     AssertContains(imageSummary, "有问题图片数", "图片级汇总");
-    AssertContains(imageSummary, "ng_*", "图片级统计公式");
+    AssertContains(imageSummary, "COUNTIF('图片明细'!E3:E5,\"误检+漏检\")", "图片级统计公式");
+    AssertContains(imageSummary, "COUNTIF('图片明细'!E3:E5,\"无漏检无误检\")", "正常图片统计公式");
     var boxSummary = ReadEntry(archive, "xl/worksheets/sheet3.xml");
     AssertContains(boxSummary, "漏检框总数", "框级汇总");
     AssertContains(boxSummary, "漏检类别数", "框级类别统计");
