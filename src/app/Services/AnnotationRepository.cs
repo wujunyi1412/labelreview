@@ -40,6 +40,9 @@ public sealed class AnnotationRepository
             item.ModelDecision = document.ModelDecision is "OK" or "NG"
                 ? document.ModelDecision
                 : "无";
+            item.ManualDecision = document.ManualDecision is "OK" or "NG"
+                ? document.ManualDecision
+                : "无";
             item.Annotations.Clear();
             foreach (var box in document.Annotations)
             {
@@ -94,6 +97,7 @@ public sealed class AnnotationRepository
             SourceBitDepth = item.SourceBitDepth,
             SourceChannels = item.SourceChannels,
             ModelDecision = item.ModelDecision,
+            ManualDecision = item.ManualDecision,
             Annotations = item.Annotations.Select(annotation => new AnnotationData
             {
                 Id = annotation.Id,
@@ -200,6 +204,7 @@ public sealed class AnnotationRepository
         public int SourceBitDepth { get; set; }
         public int SourceChannels { get; set; }
         public string ModelDecision { get; set; } = "无";
+        public string ManualDecision { get; set; } = "无";
         public List<AnnotationData> Annotations { get; set; } = [];
     }
 

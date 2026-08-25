@@ -40,7 +40,8 @@ var decisionItem = new ImageItem
 {
     FullPath = sourcePath,
     RelativePath = "decision-test.png",
-    ModelDecision = "NG"
+    ModelDecision = "NG",
+    ManualDecision = "OK"
 };
 repository.Save(decisionItem);
 var reloadedDecisionItem = new ImageItem
@@ -51,6 +52,8 @@ var reloadedDecisionItem = new ImageItem
 repository.Load(reloadedDecisionItem);
 if (reloadedDecisionItem.ModelDecision != "NG")
     throw new InvalidDataException("模型判定结果持久化验证失败");
+if (reloadedDecisionItem.ManualDecision != "OK")
+    throw new InvalidDataException("人工判定结果持久化验证失败");
 
 Console.WriteLine(path);
 

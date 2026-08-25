@@ -26,6 +26,7 @@ public partial class MainWindow : Window
     private DrawingBitmap? _currentBitmap;
     private string? _currentBitmapPath;
     private bool _loadingModelDecision;
+    private bool _loadingManualDecision;
 
     public MainWindow()
     {
@@ -133,6 +134,7 @@ public partial class MainWindow : Window
             Canvas.SetImage(_currentBitmap, item.Annotations,
                 item.SourceBitDepth, item.SourceChannels);
             SelectModelDecision(item.ModelDecision);
+            SelectManualDecision(item.ManualDecision);
             RefreshAnnotationList();
             ImageName.Text = item.RelativePath;
             ImageName.ToolTip = item.RelativePath;
@@ -157,6 +159,14 @@ public partial class MainWindow : Window
                 "未填写模型判定结果", MessageBoxButton.OK, MessageBoxImage.Warning);
             ModelDecisionCombo.Focus();
             ModelDecisionCombo.IsDropDownOpen = true;
+            return;
+        }
+        if (offset > 0 && !HasCurrentManualDecision())
+        {
+            MessageBox.Show(this, "请先选择当前图片的人工判定结果（OK 或 NG），再查看下一张。",
+                "未填写人工判定结果", MessageBoxButton.OK, MessageBoxImage.Warning);
+            ManualDecisionCombo.Focus();
+            ManualDecisionCombo.IsDropDownOpen = true;
             return;
         }
         try
@@ -405,6 +415,7 @@ public partial class MainWindow : Window
         ImageName.Text = "尚未加载图片";
         ImageStatus.Text = "未加载图像";
         SelectModelDecision("无");
+        SelectManualDecision("无");
     }
 
     private void ModelDecisionCombo_SelectionChanged(object sender, SelectionChangedEventArgs e)
@@ -444,6 +455,43 @@ public partial class MainWindow : Window
         _currentIndex >= 0 && _currentIndex < _images.Count &&
         _images[_currentIndex].ModelDecision is "OK" or "NG";
 
+    private void ManualDecisionCombo_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (_loadingManualDecision || _currentIndex < 0 || _currentIndex >= _images.Count) return;
+        var selected = (ManualDecisionCombo.SelectedItem as ComboBoxItem)?.Content?.ToString();
+        _images[_currentIndex].ManualDecision = selected is "OK" or "NG" ? selected : "无";
+        try
+        {
+            SaveCurrent();
+        }
+        catch (Exception error)
+        {
+            ShowError("保存人工判定结果失败", error);
+        }
+    }
+
+    private void SelectManualDecision(string? value)
+    {
+        _loadingManualDecision = true;
+        try
+        {
+            ManualDecisionCombo.SelectedIndex = value switch
+            {
+                "OK" => 1,
+                "NG" => 2,
+                _ => 0
+            };
+        }
+        finally
+        {
+            _loadingManualDecision = false;
+        }
+    }
+
+    private bool HasCurrentManualDecision() =>
+        _currentIndex >= 0 && _currentIndex < _images.Count &&
+        _images[_currentIndex].ManualDecision is "OK" or "NG";
+
     private string CurrentReviewType =>
         (ReviewTypeCombo.SelectedItem as ComboBoxItem)?.Content?.ToString() ?? "误检";
 
@@ -454,7 +502,7 @@ public partial class MainWindow : Window
 
     private bool IsLabelEditorFocused =>
         CategoryCombo.IsKeyboardFocusWithin || ReviewTypeCombo.IsKeyboardFocusWithin ||
-        ModelDecisionCombo.IsKeyboardFocusWithin;
+        ModelDecisionCombo.IsKeyboardFocusWithin || ManualDecisionCombo.IsKeyboardFocusWithin;
 
     private void Window_PreviewKeyDown(object sender, KeyEventArgs e)
     {

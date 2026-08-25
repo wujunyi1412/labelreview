@@ -69,6 +69,15 @@
                             <ComboBoxItem Content="NG" />
                         </ComboBox>
 
+                        <TextBlock Text="人工判定结果" FontWeight="Bold" Margin="0,6,0,2" />
+                        <ComboBox x:Name="ManualDecisionCombo" SelectedIndex="0"
+                                  HorizontalContentAlignment="Center" VerticalContentAlignment="Center"
+                                  SelectionChanged="ManualDecisionCombo_SelectionChanged">
+                            <ComboBoxItem Content="无" />
+                            <ComboBoxItem Content="OK" />
+                            <ComboBoxItem Content="NG" />
+                        </ComboBox>
+
                         <TextBlock Text="问题类型 / 当前类别" FontWeight="Bold" Margin="0,6,0,2" />
                         <Grid>
                             <Grid.ColumnDefinitions>
