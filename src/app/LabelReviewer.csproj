@@ -1,0 +1,25 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net9.0-windows</TargetFramework>
+    <UseWindowsForms>true</UseWindowsForms>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <PlatformTarget>x64</PlatformTarget>
+    <AllowUnsafeBlocks>false</AllowUnsafeBlocks>
+    <AssemblyName>LabelReviewer</AssemblyName>
+    <RootNamespace>LabelReviewer</RootNamespace>
+  </PropertyGroup>
+
+  <Target Name="CopyNativeRuntime" AfterTargets="Build" Condition="'$(NativeBridgeDir)' != ''">
+    <ItemGroup>
+      <NativeBridge Include="$(NativeBridgeDir)\ImageBridge.dll" />
+      <OpenCvRuntime Include="$(OpenCvBinDir)\opencv_core453.dll" />
+      <OpenCvRuntime Include="$(OpenCvBinDir)\opencv_imgproc453.dll" />
+      <OpenCvRuntime Include="$(OpenCvBinDir)\opencv_imgcodecs453.dll" />
+    </ItemGroup>
+    <Copy SourceFiles="@(NativeBridge)" DestinationFolder="$(OutDir)" SkipUnchangedFiles="true" />
+    <Copy SourceFiles="@(OpenCvRuntime)" DestinationFolder="$(OutDir)" SkipUnchangedFiles="true" />
+  </Target>
+</Project>
+

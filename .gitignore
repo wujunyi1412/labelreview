@@ -1,0 +1,6 @@
+/build/
+/build-*/
+/src/app/bin/
+/src/app/obj/
+/.vs/
+*.user
