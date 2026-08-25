@@ -13,6 +13,11 @@ public sealed class MainForm : Form
     private readonly ComboBox _category = new();
     private readonly ListBox _annotationList = new();
     private readonly ListView _statistics = new();
+    private readonly Label _problemImageCount = SummaryValueLabel();
+    private readonly Label _cleanImageCount = SummaryValueLabel();
+    private readonly Label _onlyMissedImageCount = SummaryValueLabel();
+    private readonly Label _onlyFalseImageCount = SummaryValueLabel();
+    private readonly Label _bothProblemImageCount = SummaryValueLabel();
     private readonly Label _imageName = new();
     private readonly ToolStripStatusLabel _positionStatus = new();
     private readonly ToolStripStatusLabel _imageStatus = new();
@@ -28,6 +33,7 @@ public sealed class MainForm : Form
     private bool _outputSelectedManually;
     private int _currentIndex = -1;
     private Bitmap? _currentBitmap;
+    private string? _currentBitmapPath;
 
     public MainForm()
     {
@@ -124,12 +130,13 @@ public sealed class MainForm : Form
         {
             Dock = DockStyle.Fill,
             ColumnCount = 1,
-            RowCount = 13,
+            RowCount = 14,
             Padding = new Padding(10),
             AutoScroll = true,
             GrowStyle = TableLayoutPanelGrowStyle.FixedSize
         };
         panel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+        panel.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         panel.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         panel.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         panel.RowStyles.Add(new RowStyle(SizeType.AutoSize));
@@ -182,6 +189,7 @@ public sealed class MainForm : Form
         categoryLine.Controls.Add(addCategory, 2, 0);
         panel.Controls.Add(SectionLabel("问题类型 / 当前类别"));
         panel.Controls.Add(categoryLine);
+        panel.Controls.Add(BuildImageSummaryPanel());
 
         panel.Controls.Add(SectionLabel("当前图片标注"));
         _annotationList.Dock = DockStyle.Fill;
@@ -239,6 +247,12 @@ public sealed class MainForm : Form
             _inputPath.Text = _inputRoot;
             if (!_outputSelectedManually)
                 SetOutputRoot(GetDefaultOutputRoot(_inputRoot));
+            else if (_outputRoot is not null && string.Equals(
+                         Path.TrimEndingDirectorySeparator(_inputRoot),
+                         Path.TrimEndingDirectorySeparator(_outputRoot),
+                         StringComparison.OrdinalIgnoreCase))
+                throw new InvalidOperationException(
+                    "输出文件夹不能与输入文件夹相同，否则会覆盖原图。");
             _images = ImageCatalog.Scan(_inputRoot, _outputRoot);
             _currentIndex = _images.Count > 0 ? 0 : -1;
             RecreateRepository();
@@ -315,6 +329,7 @@ public sealed class MainForm : Form
             var loaded = NativeImageLoader.Load(item.FullPath);
             _currentBitmap?.Dispose();
             _currentBitmap = loaded.Bitmap;
+            _currentBitmapPath = item.FullPath;
             item.Width = loaded.Bitmap.Width;
             item.Height = loaded.Bitmap.Height;
             item.SourceBitDepth = loaded.BitDepth;
@@ -402,7 +417,12 @@ public sealed class MainForm : Form
     private void SaveCurrent()
     {
         if (_currentIndex < 0 || _repository is null) return;
-        _repository.Save(_images[_currentIndex]);
+        var item = _images[_currentIndex];
+        var displayBitmap = string.Equals(_currentBitmapPath, item.FullPath,
+            StringComparison.OrdinalIgnoreCase)
+            ? _currentBitmap
+            : null;
+        _repository.Save(item, displayBitmap);
         if (_outputRoot is not null) _categoryStore.Save(_outputRoot);
         _saveStatus.Text = $"已保存 {DateTime.Now:HH:mm:ss}";
     }
@@ -465,6 +485,21 @@ public sealed class MainForm : Form
 
     private void UpdateStatistics()
     {
+        var imageStates = _images.Select(image => new
+        {
+            HasAnnotations = image.Annotations.Count > 0,
+            HasMissed = image.Annotations.Any(annotation => annotation.ReviewType == "漏检"),
+            HasFalse = image.Annotations.Any(annotation => annotation.ReviewType == "误检")
+        }).ToList();
+        _problemImageCount.Text = imageStates.Count(state => state.HasAnnotations).ToString();
+        _cleanImageCount.Text = imageStates.Count(state => !state.HasAnnotations).ToString();
+        _onlyMissedImageCount.Text = imageStates.Count(
+            state => state.HasMissed && !state.HasFalse).ToString();
+        _onlyFalseImageCount.Text = imageStates.Count(
+            state => state.HasFalse && !state.HasMissed).ToString();
+        _bothProblemImageCount.Text = imageStates.Count(
+            state => state.HasMissed && state.HasFalse).ToString();
+
         var counts = _images.SelectMany(image => image.Annotations)
             .GroupBy(annotation => new { annotation.ReviewType, annotation.Category })
             .Select(group => new
@@ -487,7 +522,14 @@ public sealed class MainForm : Form
 
     private void SetOutputRoot(string path)
     {
-        _outputRoot = Path.GetFullPath(path);
+        var fullPath = Path.GetFullPath(path);
+        if (_inputRoot is not null && string.Equals(
+                Path.TrimEndingDirectorySeparator(_inputRoot),
+                Path.TrimEndingDirectorySeparator(fullPath),
+                StringComparison.OrdinalIgnoreCase))
+            throw new InvalidOperationException(
+                "输出文件夹不能与输入文件夹相同，否则会覆盖原图。");
+        _outputRoot = fullPath;
         Directory.CreateDirectory(_outputRoot);
         _outputPath.Text = _outputRoot;
         _categoryStore.Load(_outputRoot);
@@ -514,6 +556,49 @@ public sealed class MainForm : Form
         _statistics.Columns[2].Width = 65;
     }
 
+    private Control BuildImageSummaryPanel()
+    {
+        var group = new GroupBox
+        {
+            Text = "图片问题统计",
+            Dock = DockStyle.Top,
+            AutoSize = true,
+            Padding = new Padding(10, 8, 10, 8),
+            Margin = new Padding(3, 8, 3, 5)
+        };
+        var table = new TableLayoutPanel
+        {
+            Dock = DockStyle.Top,
+            AutoSize = true,
+            ColumnCount = 2,
+            RowCount = 5
+        };
+        table.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+        table.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
+
+        AddSummaryRow(table, 0, "有问题图片", _problemImageCount);
+        AddSummaryRow(table, 1, "无问题图片", _cleanImageCount);
+        AddSummaryRow(table, 2, "只有漏检", _onlyMissedImageCount);
+        AddSummaryRow(table, 3, "只有误检", _onlyFalseImageCount);
+        AddSummaryRow(table, 4, "同时有漏检和误检", _bothProblemImageCount);
+        group.Controls.Add(table);
+        return group;
+    }
+
+    private static void AddSummaryRow(
+        TableLayoutPanel table, int row, string text, Label value)
+    {
+        var label = new Label
+        {
+            Text = text,
+            AutoSize = true,
+            Anchor = AnchorStyles.Left,
+            Margin = new Padding(0, 2, 6, 2)
+        };
+        table.Controls.Add(label, 0, row);
+        table.Controls.Add(value, 1, row);
+    }
+
     private void UpdateNavigation()
     {
         _previousButton.Enabled = _currentIndex > 0;
@@ -525,6 +610,7 @@ public sealed class MainForm : Form
     {
         _currentBitmap?.Dispose();
         _currentBitmap = null;
+        _currentBitmapPath = null;
         _canvas.SetImage(null, Array.Empty<Annotation>());
         _annotationList.Items.Clear();
         _imageName.Text = "尚未加载图片";
@@ -597,6 +683,15 @@ public sealed class MainForm : Form
         ReadOnly = true,
         Dock = DockStyle.Fill,
         BorderStyle = BorderStyle.FixedSingle
+    };
+
+    private static Label SummaryValueLabel() => new()
+    {
+        Text = "0",
+        AutoSize = true,
+        Anchor = AnchorStyles.Right,
+        Font = new Font("Microsoft YaHei UI", 9f, FontStyle.Bold),
+        Margin = new Padding(6, 2, 0, 2)
     };
 
     private void ShowError(string title, Exception error) =>
