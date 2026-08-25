@@ -38,7 +38,7 @@ endif()
 find_program(DOTNET_EXECUTABLE dotnet REQUIRED)
 set(APP_PROJECT "${CMAKE_CURRENT_SOURCE_DIR}/src/app/LabelReviewer.csproj")
 
-# The WinForms application stays an SDK-style C# project.  CMake owns the
+# The WPF application stays an SDK-style C# project.  CMake owns the
 # complete build: it first builds the OpenCV bridge, then invokes dotnet and
 # passes the exact native output directories to the C# project.
 add_custom_target(LabelReviewer ALL
@@ -48,7 +48,7 @@ add_custom_target(LabelReviewer ALL
             -p:OpenCvBinDir="${OPENCV_ROOT}/bin"
     DEPENDS ImageBridge
     WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
-    COMMENT "Building LabelReviewer WinForms application"
+    COMMENT "Building LabelReviewer WPF application"
     VERBATIM
 )
 

@@ -4,3 +4,4 @@
 /src/app/obj/
 /.vs/
 *.user
+/publish/

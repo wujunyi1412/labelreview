@@ -38,6 +38,8 @@ public sealed class MainForm : Form
     public MainForm()
     {
         Text = "图像复判与矩形标注工具";
+        var applicationIcon = Icon.ExtractAssociatedIcon(Application.ExecutablePath);
+        if (applicationIcon is not null) Icon = applicationIcon;
         WindowState = FormWindowState.Maximized;
         StartPosition = FormStartPosition.CenterScreen;
         MinimumSize = new Size(1100, 700);

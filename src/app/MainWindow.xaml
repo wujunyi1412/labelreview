@@ -1,0 +1,131 @@
+<Window x:Class="LabelReviewer.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:controls="clr-namespace:LabelReviewer.WpfControls"
+        Title="图像复判与矩形标注工具"
+        WindowState="Maximized"
+        WindowStartupLocation="CenterScreen"
+        MinWidth="1100" MinHeight="700"
+        FontFamily="Microsoft YaHei UI" FontSize="13.5"
+        PreviewKeyDown="Window_PreviewKeyDown"
+        Closing="Window_Closing">
+    <DockPanel>
+        <ToolBar DockPanel.Dock="Top" Padding="4">
+            <Button Content="选择输入文件夹" Click="ChooseInputFolder_Click" />
+            <Button Content="选择输出文件夹" Click="ChooseOutputFolder_Click" />
+            <Separator />
+            <Button x:Name="PreviousButton" Content="◀ 上一张 (A)" Click="Previous_Click" />
+            <Button x:Name="NextButton" Content="下一张 (D) ▶" Click="Next_Click" />
+            <Separator />
+            <Button Content="创建矩形框 (W)" Click="CreateBox_Click" />
+            <Button Content="编辑选中框 (E)" Click="EditBox_Click" />
+            <Button Content="编辑标签 (R)" Click="EditLabel_Click" />
+            <Button Content="删除选中框 (Delete)" Click="DeleteBox_Click" />
+            <Button Content="适应窗口 (F)" Click="Fit_Click" />
+            <Button Content="保存 (Ctrl+S)" Click="Save_Click" />
+        </ToolBar>
+
+        <StatusBar DockPanel.Dock="Bottom">
+            <StatusBarItem HorizontalContentAlignment="Stretch" Width="Auto">
+                <TextBlock x:Name="PositionStatus" Text="共 0 张" />
+            </StatusBarItem>
+            <Separator />
+            <StatusBarItem><TextBlock x:Name="ImageStatus" Text="未加载图像" /></StatusBarItem>
+            <Separator />
+            <StatusBarItem><TextBlock x:Name="SaveStatus" Text="请选择输出文件夹" /></StatusBarItem>
+        </StatusBar>
+
+        <Grid>
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" MinWidth="500" />
+                <ColumnDefinition Width="5" />
+                <ColumnDefinition Width="400" MinWidth="380" />
+            </Grid.ColumnDefinitions>
+
+            <controls:ImageCanvas x:Name="Canvas" Grid.Column="0" />
+            <GridSplitter Grid.Column="1" Width="5" HorizontalAlignment="Stretch"
+                          VerticalAlignment="Stretch" Background="#60646B"
+                          ResizeDirection="Columns" ResizeBehavior="PreviousAndNext" />
+
+            <Border Grid.Column="2" Background="#FFF7F7F7" Padding="12">
+                <ScrollViewer VerticalScrollBarVisibility="Auto"
+                              HorizontalScrollBarVisibility="Disabled">
+                    <StackPanel>
+                        <TextBlock Text="输入文件夹" FontWeight="Bold" Margin="0,3" />
+                        <TextBox x:Name="InputPath" IsReadOnly="True" />
+                        <TextBlock Text="输出文件夹" FontWeight="Bold" Margin="0,3" />
+                        <TextBox x:Name="OutputPath" IsReadOnly="True" />
+                        <TextBlock x:Name="ImageName" Text="尚未加载图片"
+                                   TextTrimming="CharacterEllipsis" ToolTip="{Binding Text, RelativeSource={RelativeSource Self}}"
+                                   MinHeight="36" VerticalAlignment="Center" Margin="0,6" />
+
+                        <TextBlock Text="问题类型 / 当前类别" FontWeight="Bold" Margin="0,6,0,2" />
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="90" />
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <ComboBox x:Name="ReviewTypeCombo" Grid.Column="0" SelectedIndex="0">
+                                <ComboBoxItem Content="误检" />
+                                <ComboBoxItem Content="漏检" />
+                            </ComboBox>
+                            <ComboBox x:Name="CategoryCombo" Grid.Column="1" IsEditable="True" />
+                            <Button Grid.Column="2" Content="添加类别" Click="AddCategory_Click" />
+                        </Grid>
+
+                        <GroupBox Header="图片问题统计" Margin="0,8,0,5" Padding="8">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                </Grid.RowDefinitions>
+                                <TextBlock Grid.Row="0" Text="有问题图片" />
+                                <TextBlock Grid.Row="0" Grid.Column="1" x:Name="ProblemImageCount" Text="0" FontWeight="Bold" />
+                                <TextBlock Grid.Row="1" Text="无问题图片" />
+                                <TextBlock Grid.Row="1" Grid.Column="1" x:Name="CleanImageCount" Text="0" FontWeight="Bold" />
+                                <TextBlock Grid.Row="2" Text="只有漏检" />
+                                <TextBlock Grid.Row="2" Grid.Column="1" x:Name="OnlyMissedImageCount" Text="0" FontWeight="Bold" />
+                                <TextBlock Grid.Row="3" Text="只有误检" />
+                                <TextBlock Grid.Row="3" Grid.Column="1" x:Name="OnlyFalseImageCount" Text="0" FontWeight="Bold" />
+                                <TextBlock Grid.Row="4" Text="同时有漏检和误检" />
+                                <TextBlock Grid.Row="4" Grid.Column="1" x:Name="BothProblemImageCount" Text="0" FontWeight="Bold" />
+                            </Grid>
+                        </GroupBox>
+
+                        <TextBlock Text="当前图片标注" FontWeight="Bold" Margin="0,6,0,3" />
+                        <ListBox x:Name="AnnotationList" MinHeight="120" Height="170"
+                                 SelectionChanged="AnnotationList_SelectionChanged" />
+
+                        <TextBlock Text="全部图片问题类型 / 类别统计" FontWeight="Bold" Margin="0,8,0,3" />
+                        <ListView x:Name="StatisticsList" MinHeight="110" Height="155">
+                            <ListView.View>
+                                <GridView>
+                                    <GridViewColumn Header="问题类型" Width="90" DisplayMemberBinding="{Binding ReviewType}" />
+                                    <GridViewColumn Header="类别" Width="165" DisplayMemberBinding="{Binding Category}" />
+                                    <GridViewColumn Header="数量" Width="60" DisplayMemberBinding="{Binding Count}" />
+                                </GridView>
+                            </ListView.View>
+                        </ListView>
+
+                        <WrapPanel Margin="0,6,0,3">
+                            <Button Content="创建矩形框 (W)" Click="CreateBox_Click" />
+                            <Button Content="编辑选中框 (E)" Click="EditBox_Click" />
+                            <Button Content="编辑标签 (R)" Click="EditLabel_Click" />
+                            <Button Content="删除选中框" Click="DeleteBox_Click" />
+                        </WrapPanel>
+                        <TextBlock Foreground="DimGray" TextWrapping="Wrap"
+                                   Text="W：画框　E：编辑框　R：编辑标签&#x0a;两次左键单击：确定两个角&#x0a;滚轮：缩放　左键拖拽：平移&#x0a;高倍放大：显示像素格和像素值&#x0a;A/D：上一张/下一张&#x0a;Esc：取消画框　Delete：删除" />
+                    </StackPanel>
+                </ScrollViewer>
+            </Border>
+        </Grid>
+    </DockPanel>
+</Window>

@@ -2,14 +2,26 @@
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
     <TargetFramework>net9.0-windows</TargetFramework>
-    <UseWindowsForms>true</UseWindowsForms>
+    <UseWPF>true</UseWPF>
+    <UseSystemDrawing>true</UseSystemDrawing>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <PlatformTarget>x64</PlatformTarget>
     <AllowUnsafeBlocks>false</AllowUnsafeBlocks>
     <AssemblyName>LabelReviewer</AssemblyName>
     <RootNamespace>LabelReviewer</RootNamespace>
+    <ApplicationIcon>Assets\LabelReviewer.ico</ApplicationIcon>
   </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Remove="Controls\**\*.cs" />
+    <Compile Remove="Forms\**\*.cs" />
+    <Compile Remove="Program.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.WindowsDesktop.App.WindowsForms" />
+  </ItemGroup>
 
   <Target Name="CopyNativeRuntime" AfterTargets="Build" Condition="'$(NativeBridgeDir)' != ''">
     <ItemGroup>
@@ -21,5 +33,34 @@
     <Copy SourceFiles="@(NativeBridge)" DestinationFolder="$(OutDir)" SkipUnchangedFiles="true" />
     <Copy SourceFiles="@(OpenCvRuntime)" DestinationFolder="$(OutDir)" SkipUnchangedFiles="true" />
   </Target>
-</Project>
 
+  <ItemGroup Condition="'$(NativeBridgeDir)' != '' and '$(OpenCvBinDir)' != ''">
+    <None Include="$(NativeBridgeDir)\ImageBridge.dll"
+          Link="ImageBridge.dll"
+          CopyToPublishDirectory="PreserveNewest" />
+    <None Include="$(OpenCvBinDir)\opencv_core453.dll"
+          Link="opencv_core453.dll"
+          CopyToPublishDirectory="PreserveNewest" />
+    <None Include="$(OpenCvBinDir)\opencv_imgproc453.dll"
+          Link="opencv_imgproc453.dll"
+          CopyToPublishDirectory="PreserveNewest" />
+    <None Include="$(OpenCvBinDir)\opencv_imgcodecs453.dll"
+          Link="opencv_imgcodecs453.dll"
+          CopyToPublishDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <ItemGroup Condition="'$(VCRedistDir)' != ''">
+    <None Include="$(VCRedistDir)\msvcp140.dll"
+          Link="msvcp140.dll"
+          CopyToPublishDirectory="PreserveNewest" />
+    <None Include="$(VCRedistDir)\vcruntime140.dll"
+          Link="vcruntime140.dll"
+          CopyToPublishDirectory="PreserveNewest" />
+    <None Include="$(VCRedistDir)\vcruntime140_1.dll"
+          Link="vcruntime140_1.dll"
+          CopyToPublishDirectory="PreserveNewest" />
+    <None Include="$(VCRedistDir)\concrt140.dll"
+          Link="concrt140.dll"
+          CopyToPublishDirectory="PreserveNewest" />
+  </ItemGroup>
+</Project>
