@@ -31,6 +31,27 @@ using (var archive = ZipFile.OpenRead(path))
     AssertContains(boxSummary, "漏检框总数", "框级汇总");
     AssertContains(boxSummary, "漏检类别数", "框级类别统计");
 }
+
+var sourcePath = Path.Combine(outputRoot, "source-for-decision-test.png");
+File.WriteAllBytes(sourcePath, [1, 2, 3]);
+var repositoryRoot = Path.Combine(outputRoot, "decision-persistence");
+var repository = new AnnotationRepository(repositoryRoot);
+var decisionItem = new ImageItem
+{
+    FullPath = sourcePath,
+    RelativePath = "decision-test.png",
+    ModelDecision = "NG"
+};
+repository.Save(decisionItem);
+var reloadedDecisionItem = new ImageItem
+{
+    FullPath = sourcePath,
+    RelativePath = "decision-test.png"
+};
+repository.Load(reloadedDecisionItem);
+if (reloadedDecisionItem.ModelDecision != "NG")
+    throw new InvalidDataException("模型判定结果持久化验证失败");
+
 Console.WriteLine(path);
 
 static string ReadEntry(ZipArchive archive, string name)
