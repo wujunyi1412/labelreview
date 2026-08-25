@@ -17,6 +17,7 @@ namespace LabelReviewer;
 public partial class MainWindow : Window
 {
     private readonly CategoryStore _categoryStore = new();
+    private readonly ExcelReportService _excelReportService = new();
     private List<ImageItem> _images = [];
     private AnnotationRepository? _repository;
     private string? _inputRoot;
@@ -95,6 +96,7 @@ public partial class MainWindow : Window
                 LoadCurrentImage();
             }
             UpdateStatistics();
+            TrySaveExcelReport();
             UpdateNavigation();
         }
         catch (Exception error)
@@ -248,7 +250,27 @@ public partial class MainWindow : Window
             : null;
         _repository.Save(item, displayBitmap);
         if (_outputRoot is not null) _categoryStore.Save(_outputRoot);
-        SaveStatus.Text = $"已保存 {DateTime.Now:HH:mm:ss}";
+        SaveStatus.Text = TrySaveExcelReport()
+            ? $"已保存（含 Excel） {DateTime.Now:HH:mm:ss}"
+            : "标注已保存；Excel 正被占用，请关闭后再次保存";
+    }
+
+    private bool TrySaveExcelReport()
+    {
+        if (_outputRoot is null) return false;
+        try
+        {
+            _excelReportService.Save(_outputRoot, _images);
+            return true;
+        }
+        catch (IOException)
+        {
+            return false;
+        }
+        catch (UnauthorizedAccessException)
+        {
+            return false;
+        }
     }
 
     private void AddCategory()
