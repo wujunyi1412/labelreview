@@ -156,7 +156,7 @@ public sealed class ExcelReportService
     {
         if (annotations.Count == 0) return "0";
         return string.Join("+", GroupByCategory(annotations)
-            .Select(group => $"{group.Count}{group.Category}"));
+            .Select(group => $"{group.Count}*{group.Category}"));
     }
 
     private static string GetStatus(bool hasMissed, bool hasFalse) =>

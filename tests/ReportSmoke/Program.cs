@@ -20,8 +20,8 @@ using (var archive = ZipFile.OpenRead(path))
 {
     AssertContains(ReadEntry(archive, "xl/workbook.xml"), "图片明细", "工作表名称");
     var details = ReadEntry(archive, "xl/worksheets/sheet1.xml");
-    AssertContains(details, "2类别1", "漏检类别合并");
-    AssertContains(details, "1类别2+1类别3", "误检类别合并");
+    AssertContains(details, "2*类别1", "漏检类别合并");
+    AssertContains(details, "1*类别2+1*类别3", "误检类别合并");
     AssertContains(details, "ng_漏检+误检", "混合问题判定");
     AssertContains(details, ">ok<", "正常图片判定");
     var imageSummary = ReadEntry(archive, "xl/worksheets/sheet2.xml");
