@@ -12,7 +12,6 @@
     <DockPanel>
         <ToolBar DockPanel.Dock="Top" Padding="4">
             <Button Content="选择输入文件夹" Click="ChooseInputFolder_Click" />
-            <Button Content="选择输出文件夹" Click="ChooseOutputFolder_Click" />
             <Separator />
             <Button x:Name="PreviousButton" Content="◀ 上一张 (A)" Click="Previous_Click" />
             <Button x:Name="NextButton" Content="下一张 (D) ▶" Click="Next_Click" />
@@ -53,6 +52,8 @@
                     <StackPanel>
                         <TextBlock Text="输入文件夹" FontWeight="Bold" Margin="0,3" />
                         <TextBox x:Name="InputPath" IsReadOnly="True" />
+                        <TextBlock Text="扫描范围" FontWeight="Bold" Margin="0,3" />
+                        <TextBox x:Name="ScanScopeText" IsReadOnly="True" />
                         <TextBlock Text="输出文件夹" FontWeight="Bold" Margin="0,3" />
                         <TextBox x:Name="OutputPath" IsReadOnly="True" />
                         <TextBlock x:Name="ImageName" Text="尚未加载图片"
@@ -66,11 +67,11 @@
                                 <ColumnDefinition Width="*" />
                                 <ColumnDefinition Width="Auto" />
                             </Grid.ColumnDefinitions>
-                            <ComboBox x:Name="ReviewTypeCombo" Grid.Column="0" SelectedIndex="0">
+                            <ComboBox x:Name="ReviewTypeCombo" Grid.Column="0" SelectedIndex="0" HorizontalContentAlignment="Center" VerticalContentAlignment="Center">
                                 <ComboBoxItem Content="误检" />
                                 <ComboBoxItem Content="漏检" />
                             </ComboBox>
-                            <ComboBox x:Name="CategoryCombo" Grid.Column="1" IsEditable="True" />
+                            <ComboBox x:Name="CategoryCombo" Grid.Column="1" IsEditable="True" HorizontalContentAlignment="Center" VerticalContentAlignment="Center" />
                             <Button Grid.Column="2" Content="添加类别" Click="AddCategory_Click" />
                         </Grid>
 

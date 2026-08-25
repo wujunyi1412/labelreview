@@ -21,7 +21,6 @@ public partial class MainWindow : Window
     private AnnotationRepository? _repository;
     private string? _inputRoot;
     private string? _outputRoot;
-    private bool _outputSelectedManually;
     private int _currentIndex = -1;
     private DrawingBitmap? _currentBitmap;
     private string? _currentBitmapPath;
@@ -48,7 +47,6 @@ public partial class MainWindow : Window
     }
 
     private void ChooseInputFolder_Click(object sender, RoutedEventArgs e) => ChooseInputFolder();
-    private void ChooseOutputFolder_Click(object sender, RoutedEventArgs e) => ChooseOutputFolder();
     private void Previous_Click(object sender, RoutedEventArgs e) => Navigate(-1);
     private void Next_Click(object sender, RoutedEventArgs e) => Navigate(1);
     private void CreateBox_Click(object sender, RoutedEventArgs e) => Canvas.BeginCreate();
@@ -68,17 +66,22 @@ public partial class MainWindow : Window
         };
         if (dialog.ShowDialog(this) != true) return;
 
+        var selectedRoot = Path.GetFullPath(dialog.FolderName);
+        var scopeDialog = new ScanScopeDialog(selectedRoot) { Owner = this };
+        if (scopeDialog.ShowDialog() != true) return;
+
         try
         {
             SaveCurrent();
-            _inputRoot = Path.GetFullPath(dialog.FolderName);
+            _inputRoot = selectedRoot;
             InputPath.Text = _inputRoot;
-            if (!_outputSelectedManually)
-                SetOutputRoot(GetDefaultOutputRoot(_inputRoot));
-            else
-                EnsureDistinctRoots(_inputRoot, _outputRoot);
+            ScanScopeText.Text = scopeDialog.SelectedLevel == 0
+                ? "整个输入根目录"
+                : $"第 {scopeDialog.SelectedLevel} 级：已选 {scopeDialog.SelectedFolders.Count} 个目录";
+            SetOutputRoot(GetDefaultOutputRoot(_inputRoot));
 
-            _images = ImageCatalog.Scan(_inputRoot, _outputRoot);
+            _images = ImageCatalog.Scan(
+                _inputRoot, scopeDialog.SelectedFolders, _outputRoot);
             _currentIndex = _images.Count > 0 ? 0 : -1;
             RecreateRepository();
             if (_images.Count == 0)
@@ -97,36 +100,6 @@ public partial class MainWindow : Window
         catch (Exception error)
         {
             ShowError("读取输入文件夹失败", error);
-        }
-    }
-
-    private void ChooseOutputFolder()
-    {
-        var dialog = new OpenFolderDialog
-        {
-            Title = "选择结果图片和 JSON 的输出根文件夹",
-            Multiselect = false
-        };
-        if (dialog.ShowDialog(this) != true) return;
-
-        try
-        {
-            SaveCurrent();
-            SetOutputRoot(Path.GetFullPath(dialog.FolderName));
-            _outputSelectedManually = true;
-            foreach (var item in _images) item.AnnotationDataLoaded = false;
-            RecreateRepository();
-            foreach (var category in _images.SelectMany(item => item.Annotations)
-                         .Select(annotation => annotation.Category))
-                _categoryStore.Add(category);
-            RefreshCategoryEditor();
-            if (_currentIndex >= 0) LoadCurrentImage();
-            UpdateStatistics();
-            SaveStatus.Text = "自动保存已开启";
-        }
-        catch (Exception error)
-        {
-            ShowError("设置输出文件夹失败", error);
         }
     }
 

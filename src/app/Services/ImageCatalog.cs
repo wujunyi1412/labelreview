@@ -10,6 +10,10 @@ public static class ImageCatalog
     };
 
     public static List<ImageItem> Scan(string root, string? excludedRoot = null)
+        => Scan(root, [root], excludedRoot);
+
+    public static List<ImageItem> Scan(
+        string root, IEnumerable<string> includedRoots, string? excludedRoot = null)
     {
         var normalizedRoot = Path.GetFullPath(root).TrimEnd(Path.DirectorySeparatorChar);
         var candidateExclusion = excludedRoot is null ? null
@@ -19,7 +23,8 @@ public static class ImageCatalog
                                       StringComparison.OrdinalIgnoreCase)
             ? candidateExclusion + Path.DirectorySeparatorChar
             : null;
-        return Directory.EnumerateFiles(root, "*", SearchOption.AllDirectories)
+        return includedRoots.SelectMany(scanRoot =>
+                Directory.EnumerateFiles(scanRoot, "*", SearchOption.AllDirectories))
             .Where(path => Extensions.Contains(Path.GetExtension(path)))
             .Where(path => normalizedExclusion is null ||
                 !Path.GetFullPath(path).StartsWith(normalizedExclusion, StringComparison.OrdinalIgnoreCase))
@@ -28,6 +33,7 @@ public static class ImageCatalog
                 FullPath = path,
                 RelativePath = Path.GetRelativePath(root, path)
             })
+            .DistinctBy(item => item.FullPath, StringComparer.OrdinalIgnoreCase)
             .OrderBy(item => item.RelativePath, StringComparer.CurrentCultureIgnoreCase)
             .ToList();
     }
