@@ -19,9 +19,11 @@ public sealed class ImageCanvas : Control
     private Point _lastPanPoint;
     private Point _lastMousePoint;
     private Guid? _selectedId;
+    private Guid? _editingId;
     private readonly ContextMenuStrip _menu;
 
     public event Action<Rectangle>? BoxCompleted;
+    public event Action<Guid>? BoxEdited;
     public event Action<Guid?>? SelectionChanged;
     public event Action? DeleteRequested;
 
@@ -48,6 +50,7 @@ public sealed class ImageCanvas : Control
 
         _menu = new ContextMenuStrip();
         _menu.Items.Add("创建矩形框 (W)", null, (_, _) => BeginCreate(false));
+        _menu.Items.Add("编辑选中框 (E)", null, (_, _) => BeginEditSelected());
         _menu.Items.Add("删除选中框 (Delete)", null, (_, _) => DeleteRequested?.Invoke());
     }
 
@@ -56,6 +59,7 @@ public sealed class ImageCanvas : Control
         _image = image;
         _annotations = annotations;
         _creationState = CreationState.Idle;
+        _editingId = null;
         SelectedId = null;
         FitToWindow();
     }
@@ -70,6 +74,7 @@ public sealed class ImageCanvas : Control
     public void BeginCreate(bool startAtPointer = true)
     {
         if (_image is null) return;
+        _editingId = null;
         Focus();
         if (startAtPointer && TryScreenToImage(_lastMousePoint, out var point))
         {
@@ -85,9 +90,24 @@ public sealed class ImageCanvas : Control
         Invalidate();
     }
 
+    public bool BeginEditSelected()
+    {
+        if (_image is null || SelectedId is null ||
+            !_annotations.Any(annotation => annotation.Id == SelectedId))
+            return false;
+
+        _editingId = SelectedId;
+        _creationState = CreationState.Armed;
+        Focus();
+        Cursor = Cursors.Cross;
+        Invalidate();
+        return true;
+    }
+
     public void CancelCreate()
     {
         _creationState = CreationState.Idle;
+        _editingId = null;
         Cursor = Cursors.Default;
         Invalidate();
     }
@@ -227,23 +247,40 @@ public sealed class ImageCanvas : Control
         }
 
         if (_creationState == CreationState.Armed)
-            DrawHint(e.Graphics, "单击确定矩形第一个角，再单击完成");
+            DrawHint(e.Graphics, _editingId is null
+                ? "单击确定矩形第一个角，再单击完成"
+                : "编辑选中框：单击确定新的第一个角，再单击完成");
         else if (_creationState == CreationState.Drawing)
-            DrawHint(e.Graphics, "移动鼠标并单击完成；右键或 Esc 取消");
+            DrawHint(e.Graphics, _editingId is null
+                ? "移动鼠标并单击完成；右键或 Esc 取消"
+                : "编辑选中框：单击确定新的第二个角；右键或 Esc 取消");
     }
 
     private void CompleteBox(PointF end)
     {
         var bounds = Normalize(_startImagePoint, end);
+        var editingId = _editingId;
         _creationState = CreationState.Idle;
+        _editingId = null;
         Cursor = Cursors.Default;
         Invalidate();
         var rectangle = Rectangle.FromLTRB(
             (int)Math.Floor(bounds.Left), (int)Math.Floor(bounds.Top),
             (int)Math.Ceiling(bounds.Right), (int)Math.Ceiling(bounds.Bottom));
         rectangle.Intersect(new Rectangle(0, 0, _image!.Width, _image.Height));
-        if (rectangle.Width >= 2 && rectangle.Height >= 2)
+        if (rectangle.Width < 2 || rectangle.Height < 2) return;
+
+        if (editingId is Guid id)
+        {
+            var annotation = _annotations.FirstOrDefault(value => value.Id == id);
+            if (annotation is null) return;
+            annotation.Bounds = rectangle;
+            BoxEdited?.Invoke(id);
+        }
+        else
+        {
             BoxCompleted?.Invoke(rectangle);
+        }
     }
 
     private Annotation? HitTest(Point screenPoint)
@@ -261,15 +298,42 @@ public sealed class ImageCanvas : Control
     {
         var rectangle = ToScreen(annotation.Bounds, t);
         var selected = annotation.Id == SelectedId;
-        using var pen = new Pen(selected ? Color.Yellow : Color.Red, selected ? 3f : 2f);
+        var borderColor = annotation.ReviewType switch
+        {
+            "误检" => Color.LimeGreen,
+            "漏检" => Color.Gold,
+            _ => Color.Red
+        };
+        var backgroundColor = annotation.ReviewType switch
+        {
+            "误检" => Color.DarkGreen,
+            "漏检" => Color.DarkGoldenrod,
+            _ => Color.DarkRed
+        };
+        using var pen = new Pen(borderColor, selected ? 3f : 2f);
         graphics.DrawRectangle(pen, rectangle.X, rectangle.Y, rectangle.Width, rectangle.Height);
+        if (selected)
+        {
+            const float handleSize = 7f;
+            var half = handleSize / 2f;
+            using var handleBrush = new SolidBrush(Color.White);
+            foreach (var point in new[]
+                     {
+                         new PointF(rectangle.Left, rectangle.Top),
+                         new PointF(rectangle.Right, rectangle.Top),
+                         new PointF(rectangle.Left, rectangle.Bottom),
+                         new PointF(rectangle.Right, rectangle.Bottom)
+                     })
+                graphics.FillRectangle(handleBrush,
+                    point.X - half, point.Y - half, handleSize, handleSize);
+        }
 
-        var text = annotation.Category;
+        var reviewType = annotation.ReviewType.Length == 0 ? "未指定" : annotation.ReviewType;
+        var text = $"{reviewType} / {annotation.Category}";
         var size = graphics.MeasureString(text, Font);
         var label = new RectangleF(rectangle.X, Math.Max(0, rectangle.Y - size.Height - 2),
             size.Width + 6, size.Height + 2);
-        using var background = new SolidBrush(Color.FromArgb(210,
-            selected ? Color.Goldenrod : Color.DarkRed));
+        using var background = new SolidBrush(Color.FromArgb(220, backgroundColor));
         graphics.FillRectangle(background, label);
         graphics.DrawString(text, Font, Brushes.White, label.X + 3, label.Y + 1);
     }

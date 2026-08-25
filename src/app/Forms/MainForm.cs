@@ -49,6 +49,7 @@ public sealed class MainForm : Form
         toolbar.Items.Add(_nextButton);
         toolbar.Items.Add(new ToolStripSeparator());
         toolbar.Items.Add(MakeButton("创建矩形框 (W)", (_, _) => _canvas.BeginCreate(false)));
+        toolbar.Items.Add(MakeButton("编辑选中框 (E)", (_, _) => BeginEditSelected()));
         toolbar.Items.Add(MakeButton("删除选中框 (Delete)", (_, _) => DeleteSelected()));
         toolbar.Items.Add(MakeButton("适应窗口 (F)", (_, _) => _canvas.FitToWindow()));
         toolbar.Items.Add(MakeButton("保存 (Ctrl+S)", (_, _) => SaveCurrent()));
@@ -85,6 +86,7 @@ public sealed class MainForm : Form
         status.Dock = DockStyle.Bottom;
 
         _canvas.BoxCompleted += AddBox;
+        _canvas.BoxEdited += FinishBoxEdit;
         _canvas.SelectionChanged += SelectAnnotationInList;
         _canvas.DeleteRequested += DeleteSelected;
         _annotationList.SelectedIndexChanged += (_, _) =>
@@ -199,10 +201,13 @@ public sealed class MainForm : Form
 
         var actionLine = new FlowLayoutPanel { Dock = DockStyle.Fill, AutoSize = true };
         var create = new Button { Text = "创建矩形框 (W)", AutoSize = true };
+        var edit = new Button { Text = "编辑选中框 (E)", AutoSize = true };
         var delete = new Button { Text = "删除选中框", AutoSize = true };
         create.Click += (_, _) => _canvas.BeginCreate(false);
+        edit.Click += (_, _) => BeginEditSelected();
         delete.Click += (_, _) => DeleteSelected();
         actionLine.Controls.Add(create);
+        actionLine.Controls.Add(edit);
         actionLine.Controls.Add(delete);
         panel.Controls.Add(actionLine);
 
@@ -211,7 +216,7 @@ public sealed class MainForm : Form
             Dock = DockStyle.Fill,
             AutoSize = true,
             ForeColor = Color.DimGray,
-            Text = "W：进入画框模式\n两次左键单击：确定两个角\n滚轮：缩放　中键：平移\nA/D：上一张/下一张\nEsc：取消画框　Delete：删除"
+            Text = "W：进入画框模式　E：编辑选中框\n两次左键单击：确定两个角\n滚轮：缩放　中键：平移\nA/D：上一张/下一张\nEsc：取消画框　Delete：删除"
         };
         panel.Controls.Add(help);
         return panel;
@@ -381,6 +386,19 @@ public sealed class MainForm : Form
         UpdateStatistics();
     }
 
+    private void BeginEditSelected()
+    {
+        if (_canvas.BeginEditSelected()) return;
+        MessageBox.Show(this, "请先在画布或右侧标注列表中选择一个检测框。",
+            "尚未选择检测框", MessageBoxButtons.OK, MessageBoxIcon.Information);
+    }
+
+    private void FinishBoxEdit(Guid id)
+    {
+        RefreshAnnotationList(id);
+        SaveCurrent();
+    }
+
     private void SaveCurrent()
     {
         if (_currentIndex < 0 || _repository is null) return;
@@ -523,6 +541,11 @@ public sealed class MainForm : Form
         else if (e.KeyCode == Keys.W && !IsLabelEditorFocused)
         {
             _canvas.BeginCreate(false);
+            e.SuppressKeyPress = true;
+        }
+        else if (e.KeyCode == Keys.E && !IsLabelEditorFocused)
+        {
+            BeginEditSelected();
             e.SuppressKeyPress = true;
         }
         else if ((e.KeyCode == Keys.A || e.KeyCode == Keys.Left) && !IsLabelEditorFocused)
