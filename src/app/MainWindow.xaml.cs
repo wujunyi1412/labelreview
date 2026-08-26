@@ -46,6 +46,7 @@ public partial class MainWindow : Window
         Canvas.SelectionChanged += SelectAnnotationInList;
         Canvas.EditLabelRequested += EditSelectedLabel;
         Canvas.DeleteRequested += DeleteSelected;
+        InitializeSnOptions();
         UpdateNavigation();
     }
 
@@ -280,7 +281,7 @@ public partial class MainWindow : Window
         if (_outputRoot is null) return false;
         try
         {
-            _excelReportService.Save(_outputRoot, _images);
+            _excelReportService.Save(_outputRoot, _images, CurrentImageSnOptions);
             return true;
         }
         catch (IOException)
@@ -502,7 +503,45 @@ public partial class MainWindow : Window
 
     private bool IsLabelEditorFocused =>
         CategoryCombo.IsKeyboardFocusWithin || ReviewTypeCombo.IsKeyboardFocusWithin ||
-        ModelDecisionCombo.IsKeyboardFocusWithin || ManualDecisionCombo.IsKeyboardFocusWithin;
+        ModelDecisionCombo.IsKeyboardFocusWithin || ManualDecisionCombo.IsKeyboardFocusWithin ||
+        SnAnchorFolderTextBox.IsKeyboardFocusWithin ||
+        SnStartBoundaryCombo.IsKeyboardFocusWithin || SnEndBoundaryCombo.IsKeyboardFocusWithin;
+
+    private void InitializeSnOptions()
+    {
+        SnStartBoundaryCombo.ItemsSource = new[] { "开头" }
+            .Concat(Enumerable.Range(1, 10).Select(FormatUnderscoreBoundary))
+            .ToList();
+        SnEndBoundaryCombo.ItemsSource = Enumerable.Range(1, 10)
+            .Select(FormatUnderscoreBoundary)
+            .Append("末尾")
+            .ToList();
+        SnStartBoundaryCombo.Text = FormatUnderscoreBoundary(2);
+        SnEndBoundaryCombo.Text = FormatUnderscoreBoundary(3);
+    }
+
+    private ImageSnOptions CurrentImageSnOptions => new(
+        string.IsNullOrWhiteSpace(SnAnchorFolderTextBox.Text)
+            ? "images"
+            : SnAnchorFolderTextBox.Text.Trim(),
+        ParseUnderscoreBoundary(SnStartBoundaryCombo.Text, "开头", 2),
+        ParseUnderscoreBoundary(SnEndBoundaryCombo.Text, "末尾", 3));
+
+    private static string FormatUnderscoreBoundary(int ordinal) =>
+        $"第{ordinal}个下划线";
+
+    private static int? ParseUnderscoreBoundary(string? text, string edgeLabel,
+        int defaultOrdinal)
+    {
+        var value = text?.Trim() ?? string.Empty;
+        if (string.Equals(value, edgeLabel, StringComparison.OrdinalIgnoreCase)) return null;
+        value = value.Replace("第", string.Empty, StringComparison.Ordinal)
+            .Replace("个下划线", string.Empty, StringComparison.Ordinal)
+            .Trim();
+        return int.TryParse(value, out var ordinal) && ordinal > 0
+            ? ordinal
+            : defaultOrdinal;
+    }
 
     private void Window_PreviewKeyDown(object sender, KeyEventArgs e)
     {

@@ -7,7 +7,8 @@ using LabelReviewer.Services;
 var outputRoot = args.Length > 0 ? Path.GetFullPath(args[0]) : Path.GetFullPath("report-smoke-output");
 var first = new ImageItem
 {
-    FullPath = @"D:\samples\line1\image001.png", RelativePath = @"line1\image001.png",
+    FullPath = @"D:\samples\images\HUIQT_U02-3_CL1265T0005_20260815T085907\image001.png",
+    RelativePath = @"images\HUIQT_U02-3_CL1265T0005_20260815T085907\image001.png",
     ModelDecision = "NG", ManualDecision = "OK"
 };
 first.Annotations.Add(new Annotation { ReviewType = "漏检", Category = "类别1", Bounds = new Rectangle(1, 2, 30, 40) });
@@ -44,6 +45,9 @@ using (var archive = ZipFile.OpenRead(path))
 {
     AssertContains(ReadEntry(archive, "xl/workbook.xml"), "图片明细", "工作表名称");
     var details = ReadEntry(archive, "xl/worksheets/sheet1.xml");
+    AssertContains(details, "图片SN", "图片 SN 列标题");
+    AssertContains(details, ">CL1265T0005<", "默认图片 SN 提取");
+    AssertNotContains(details, "图片路径", "旧图片路径列标题");
     AssertContains(details, "2*类别1", "漏检类别合并");
     AssertContains(details, "1*类别2+1*类别3", "误检类别合并");
     AssertContains(details, ">误检+漏检<", "混合问题判定");
@@ -78,6 +82,22 @@ using (var archive = ZipFile.OpenRead(path))
     AssertContains(boxSummary, "漏检类别数", "框级类别统计");
     AssertNotContains(boxSummary, "未复判类别", "未复判标注过滤");
 }
+
+var snSource = new ImageItem
+{
+    FullPath = @"D:\samples\custom\HUIQT_U02-3_CL1265T0005_20260815T085907\image.png",
+    RelativePath = @"custom\HUIQT_U02-3_CL1265T0005_20260815T085907\image.png"
+};
+if (ImageSnExtractor.Extract(snSource, new ImageSnOptions("custom", null, 1)) != "HUIQT")
+    throw new InvalidDataException("从开头提取图片 SN 验证失败");
+if (ImageSnExtractor.Extract(snSource, new ImageSnOptions("custom", 3, null)) != "20260815T085907")
+    throw new InvalidDataException("提取图片 SN 到末尾验证失败");
+if (ImageSnExtractor.Extract(snSource, new ImageSnOptions("missing", 2, 3)) !=
+    snSource.FullPath)
+    throw new InvalidDataException("图片 SN 定位文件夹缺失时的绝对路径回退验证失败");
+if (ImageSnExtractor.Extract(snSource, new ImageSnOptions("custom", 8, 9)) !=
+    snSource.FullPath)
+    throw new InvalidDataException("图片 SN 下划线不足时的绝对路径回退验证失败");
 
 var sourcePath = Path.Combine(outputRoot, "source-for-decision-test.png");
 File.WriteAllBytes(sourcePath, [1, 2, 3]);

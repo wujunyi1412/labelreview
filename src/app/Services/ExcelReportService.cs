@@ -12,7 +12,8 @@ public sealed class ExcelReportService
     private const string SpreadsheetNamespace =
         "http://schemas.openxmlformats.org/spreadsheetml/2006/main";
 
-    public string Save(string outputRoot, IReadOnlyList<ImageItem> images)
+    public string Save(string outputRoot, IReadOnlyList<ImageItem> images,
+        ImageSnOptions? snOptions = null)
     {
         Directory.CreateDirectory(outputRoot);
         var destination = Path.Combine(outputRoot, FileName);
@@ -32,7 +33,7 @@ public sealed class ExcelReportService
                 WriteTextEntry(archive, "xl/workbook.xml", WorkbookXml());
                 WriteTextEntry(archive, "xl/_rels/workbook.xml.rels", WorkbookRelationshipsXml());
                 WriteTextEntry(archive, "xl/styles.xml", StylesXml());
-                WriteImageDetailsSheet(archive, reviewedImages);
+                WriteImageDetailsSheet(archive, reviewedImages, snOptions);
                 WriteImageSummarySheet(archive, images.Count, reviewedImages);
                 WriteBoxSummarySheet(archive, reviewedImages);
             }
@@ -47,14 +48,14 @@ public sealed class ExcelReportService
     }
 
     private static void WriteImageDetailsSheet(ZipArchive archive,
-        IReadOnlyList<ImageItem> images)
+        IReadOnlyList<ImageItem> images, ImageSnOptions? snOptions)
     {
         var rows = new List<RowData>
         {
             new(1, [Text("A", "图片检测明细", 1)]),
             new(2,
             [
-                Text("A", "图片路径", 2), Text("B", "图片名称", 2),
+                Text("A", "图片SN", 2), Text("B", "图片名称", 2),
                 Text("C", "漏检标注信息", 2), Text("D", "误检标注信息", 2),
                 Text("E", "人工判定模型结果", 2),
                 Text("F", "模型判定图片结果", 2),
@@ -74,7 +75,7 @@ public sealed class ExcelReportService
             var row = (uint)index + 3;
             rows.Add(new RowData(row,
             [
-                Text("A", image.FullPath, 3),
+                Text("A", ImageSnExtractor.Extract(image, snOptions), 3),
                 Text("B", Path.GetFileName(image.FullPath), 3),
                 Text("C", FormatAnnotations(missed), 3),
                 Text("D", FormatAnnotations(falsePositive), 3),
@@ -87,7 +88,7 @@ public sealed class ExcelReportService
         }
 
         WriteWorksheet(archive, "xl/worksheets/sheet1.xml", rows,
-            [(1, 56d), (2, 28d), (3, 34d), (4, 34d), (5, 24d),
+            [(1, 26d), (2, 28d), (3, 34d), (4, 34d), (5, 24d),
                 (6, 23d), (7, 23d), (8, 23d)],
             mergeReference: "A1:H1", freezeRows: 2,
             autoFilterReference: $"A2:H{Math.Max(2, images.Count + 2)}");
