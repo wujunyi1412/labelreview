@@ -27,7 +27,19 @@ var third = new ImageItem
     FullPath = @"D:\samples\line2\image003.bmp", RelativePath = @"line2\image003.bmp",
     ModelDecision = "NG", ManualDecision = "NG"
 };
-var path = new ExcelReportService().Save(outputRoot, [first, second, third]);
+var unreviewed = new ImageItem
+{
+    FullPath = @"D:\samples\line2\image004.png", RelativePath = @"line2\image004.png"
+};
+unreviewed.Annotations.Add(new Annotation
+    { ReviewType = "漏检", Category = "未复判类别", Bounds = new Rectangle(1, 1, 2, 2) });
+var partiallyReviewed = new ImageItem
+{
+    FullPath = @"D:\samples\line2\image005.png", RelativePath = @"line2\image005.png",
+    ModelDecision = "OK"
+};
+var path = new ExcelReportService().Save(outputRoot,
+    [first, second, third, unreviewed, partiallyReviewed]);
 using (var archive = ZipFile.OpenRead(path))
 {
     AssertContains(ReadEntry(archive, "xl/workbook.xml"), "图片明细", "工作表名称");
@@ -46,13 +58,25 @@ using (var archive = ZipFile.OpenRead(path))
     AssertContains(details, "IF(F3=G3,\"正确\",\"错误\")", "模型正确性公式");
     AssertContains(details, ">错误<", "错误比较结果");
     AssertContains(details, ">正确<", "正确比较结果");
+    AssertNotContains(details, "image004.png", "未复判图片过滤");
+    AssertNotContains(details, "image005.png", "部分复判图片过滤");
     var imageSummary = ReadEntry(archive, "xl/worksheets/sheet2.xml");
     AssertContains(imageSummary, "有问题图片数", "图片级汇总");
+    AssertContains(imageSummary, "扫描图片总数", "扫描总数");
+    AssertContains(imageSummary, "已复判图片数", "已复判数量");
+    AssertContains(imageSummary, "未复判图片数", "未复判数量");
+    AssertContains(imageSummary, "复判完成率", "复判进度");
+    AssertContains(imageSummary, "r=\"B4\" s=\"4\"><v>5</v>", "扫描总数数值");
+    AssertContains(imageSummary, "r=\"B5\" s=\"4\"><f>COUNTA('图片明细'!B3:B5)</f><v>3</v>", "已复判数值");
+    AssertContains(imageSummary, "r=\"B6\" s=\"4\"><f>B4-B5</f><v>2</v>", "未复判数值");
+    AssertContains(imageSummary, "r=\"B7\" s=\"7\"><f>IF(B4=0,0,B5/B4)</f><v>0.6</v>", "完成率数值和格式");
+    AssertContains(imageSummary, "IF(B4=0,0,B5/B4)", "完成率公式");
     AssertContains(imageSummary, "COUNTIF('图片明细'!E3:E5,\"误检+漏检\")", "图片级统计公式");
     AssertContains(imageSummary, "COUNTIF('图片明细'!E3:E5,\"无漏检无误检\")", "正常图片统计公式");
     var boxSummary = ReadEntry(archive, "xl/worksheets/sheet3.xml");
     AssertContains(boxSummary, "漏检框总数", "框级汇总");
     AssertContains(boxSummary, "漏检类别数", "框级类别统计");
+    AssertNotContains(boxSummary, "未复判类别", "未复判标注过滤");
 }
 
 var sourcePath = Path.Combine(outputRoot, "source-for-decision-test.png");
@@ -91,4 +115,10 @@ static void AssertContains(string value, string expected, string description)
 {
     if (!value.Contains(expected, StringComparison.Ordinal))
         throw new InvalidDataException($"{description}验证失败：缺少 {expected}");
+}
+
+static void AssertNotContains(string value, string unexpected, string description)
+{
+    if (value.Contains(unexpected, StringComparison.Ordinal))
+        throw new InvalidDataException($"{description}验证失败：不应包含 {unexpected}");
 }

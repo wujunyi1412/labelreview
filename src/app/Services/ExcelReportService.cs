@@ -17,6 +17,7 @@ public sealed class ExcelReportService
         Directory.CreateDirectory(outputRoot);
         var destination = Path.Combine(outputRoot, FileName);
         var temporary = Path.Combine(outputRoot, $".{FileName}.{Guid.NewGuid():N}.tmp");
+        var reviewedImages = images.Where(IsReviewed).ToList();
 
         try
         {
@@ -31,9 +32,9 @@ public sealed class ExcelReportService
                 WriteTextEntry(archive, "xl/workbook.xml", WorkbookXml());
                 WriteTextEntry(archive, "xl/_rels/workbook.xml.rels", WorkbookRelationshipsXml());
                 WriteTextEntry(archive, "xl/styles.xml", StylesXml());
-                WriteImageDetailsSheet(archive, images);
-                WriteImageSummarySheet(archive, images);
-                WriteBoxSummarySheet(archive, images);
+                WriteImageDetailsSheet(archive, reviewedImages);
+                WriteImageSummarySheet(archive, images.Count, reviewedImages);
+                WriteBoxSummarySheet(archive, reviewedImages);
             }
 
             File.Move(temporary, destination, overwrite: true);
@@ -92,28 +93,35 @@ public sealed class ExcelReportService
             autoFilterReference: $"A2:H{Math.Max(2, images.Count + 2)}");
     }
 
-    private static void WriteImageSummarySheet(ZipArchive archive,
-        IReadOnlyList<ImageItem> images)
+    private static void WriteImageSummarySheet(ZipArchive archive, int totalImageCount,
+        IReadOnlyList<ImageItem> reviewedImages)
     {
-        var states = images.Select(image => new
+        var states = reviewedImages.Select(image => new
         {
             HasMissed = image.Annotations.Any(value => value.ReviewType == "漏检"),
             HasFalse = image.Annotations.Any(value => value.ReviewType == "误检")
         }).ToList();
-        var lastDetailRow = Math.Max(3, images.Count + 2);
+        var lastDetailRow = Math.Max(3, reviewedImages.Count + 2);
         var detailStatusRange = $"'图片明细'!E3:E{lastDetailRow}";
         var detailsNameRange = $"'图片明细'!B3:B{lastDetailRow}";
+        var completionRate = totalImageCount == 0
+            ? 0d
+            : (double)reviewedImages.Count / totalImageCount;
 
         var rows = new List<RowData>
         {
             new(1, [Text("A", "图片级汇总", 1)]),
-            new(3, [Text("A", "统计项目", 2), Text("B", "图片数量", 2)]),
-            new(4, [Text("A", "总图片数", 3), Formula("B", $"COUNTA({detailsNameRange})", images.Count, 4)]),
-            new(5, [Text("A", "有问题图片数", 3), Formula("B", $"COUNTIF({detailStatusRange},\"漏检\")+COUNTIF({detailStatusRange},\"误检\")+COUNTIF({detailStatusRange},\"误检+漏检\")", states.Count(s => s.HasMissed || s.HasFalse), 4)]),
-            new(6, [Text("A", "只有漏检", 3), Formula("B", $"COUNTIF({detailStatusRange},\"漏检\")", states.Count(s => s.HasMissed && !s.HasFalse), 4)]),
-            new(7, [Text("A", "只有误检", 3), Formula("B", $"COUNTIF({detailStatusRange},\"误检\")", states.Count(s => !s.HasMissed && s.HasFalse), 4)]),
-            new(8, [Text("A", "同时有漏检和误检", 3), Formula("B", $"COUNTIF({detailStatusRange},\"误检+漏检\")", states.Count(s => s.HasMissed && s.HasFalse), 4)]),
-            new(9, [Text("A", "没有问题", 3), Formula("B", $"COUNTIF({detailStatusRange},\"无漏检无误检\")", states.Count(s => !s.HasMissed && !s.HasFalse), 4)])
+            new(3, [Text("A", "复判进度", 2), Text("B", "数量 / 比例", 2)]),
+            new(4, [Text("A", "扫描图片总数", 3), Number("B", totalImageCount, 4)]),
+            new(5, [Text("A", "已复判图片数", 3), Formula("B", $"COUNTA({detailsNameRange})", reviewedImages.Count, 4)]),
+            new(6, [Text("A", "未复判图片数", 3), Formula("B", "B4-B5", totalImageCount - reviewedImages.Count, 4)]),
+            new(7, [Text("A", "复判完成率", 3), DecimalFormula("B", "IF(B4=0,0,B5/B4)", completionRate, 7)]),
+            new(9, [Text("A", "已复判结果统计", 2), Text("B", "图片数量", 2)]),
+            new(10, [Text("A", "有问题图片数", 3), Formula("B", $"COUNTIF({detailStatusRange},\"漏检\")+COUNTIF({detailStatusRange},\"误检\")+COUNTIF({detailStatusRange},\"误检+漏检\")", states.Count(s => s.HasMissed || s.HasFalse), 4)]),
+            new(11, [Text("A", "只有漏检", 3), Formula("B", $"COUNTIF({detailStatusRange},\"漏检\")", states.Count(s => s.HasMissed && !s.HasFalse), 4)]),
+            new(12, [Text("A", "只有误检", 3), Formula("B", $"COUNTIF({detailStatusRange},\"误检\")", states.Count(s => !s.HasMissed && s.HasFalse), 4)]),
+            new(13, [Text("A", "同时有漏检和误检", 3), Formula("B", $"COUNTIF({detailStatusRange},\"误检+漏检\")", states.Count(s => s.HasMissed && s.HasFalse), 4)]),
+            new(14, [Text("A", "没有问题", 3), Formula("B", $"COUNTIF({detailStatusRange},\"无漏检无误检\")", states.Count(s => !s.HasMissed && !s.HasFalse), 4)])
         };
 
         WriteWorksheet(archive, "xl/worksheets/sheet2.xml", rows,
@@ -176,6 +184,10 @@ public sealed class ExcelReportService
             (false, true) => "误检",
             _ => "无漏检无误检"
         };
+
+    private static bool IsReviewed(ImageItem image) =>
+        image.ModelDecision is "OK" or "NG" &&
+        image.ManualDecision is "OK" or "NG";
 
     private static void WriteWorksheet(ZipArchive archive, string path,
         IReadOnlyList<RowData> rows, IReadOnlyList<(int Index, double Width)> columns,
@@ -294,6 +306,10 @@ public sealed class ExcelReportService
     private static CellData Formula(string column, string formula, int cachedValue, uint style) =>
         new(column, CellKind.Formula, formula, style, cachedValue.ToString());
 
+    private static CellData DecimalFormula(string column, string formula, double cachedValue,
+        uint style) => new(column, CellKind.Formula, formula, style,
+        cachedValue.ToString(System.Globalization.CultureInfo.InvariantCulture));
+
     private static CellData FormulaText(string column, string formula, string cachedValue, uint style) =>
         new(column, CellKind.FormulaText, formula, style, cachedValue);
 
@@ -379,7 +395,7 @@ public sealed class ExcelReportService
             <border><left style="thin"><color rgb="FFD7E1E5"/></left><right style="thin"><color rgb="FFD7E1E5"/></right><top style="thin"><color rgb="FFD7E1E5"/></top><bottom style="thin"><color rgb="FFD7E1E5"/></bottom><diagonal/></border>
           </borders>
           <cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs>
-          <cellXfs count="7">
+          <cellXfs count="8">
             <xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/>
             <xf numFmtId="0" fontId="1" fillId="2" borderId="0" xfId="0" applyAlignment="1"><alignment horizontal="center" vertical="center"/></xf>
             <xf numFmtId="0" fontId="2" fillId="3" borderId="1" xfId="0" applyAlignment="1"><alignment horizontal="center" vertical="center" wrapText="1"/></xf>
@@ -387,6 +403,7 @@ public sealed class ExcelReportService
             <xf numFmtId="0" fontId="0" fillId="0" borderId="1" xfId="0" applyAlignment="1"><alignment horizontal="center" vertical="center"/></xf>
             <xf numFmtId="0" fontId="0" fillId="4" borderId="1" xfId="0" applyAlignment="1"><alignment horizontal="center" vertical="center"/></xf>
             <xf numFmtId="0" fontId="0" fillId="5" borderId="1" xfId="0" applyAlignment="1"><alignment horizontal="center" vertical="center"/></xf>
+            <xf numFmtId="10" fontId="0" fillId="0" borderId="1" xfId="0" applyNumberFormat="1" applyAlignment="1"><alignment horizontal="center" vertical="center"/></xf>
           </cellXfs>
           <cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles>
         </styleSheet>
