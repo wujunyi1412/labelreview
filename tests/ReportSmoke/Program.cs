@@ -4,6 +4,20 @@ using System.Text;
 using LabelReviewer.Models;
 using LabelReviewer.Services;
 
+var categoryRoot = Path.Combine(
+    args.Length > 0 ? Path.GetFullPath(args[0]) : Path.GetFullPath("report-smoke-output"),
+    "category-defaults");
+var categoryStore = new CategoryStore();
+categoryStore.Load(categoryRoot);
+var expectedDefaultCategories = new[]
+{
+    "Stain", "Abnormal", "DarkClusters", "BrightStripes", "LineArtifacts",
+    "异色", "颗粒", "脏污", "暗边", "成像异常", "亮线", "背景"
+};
+foreach (var category in expectedDefaultCategories)
+    if (!categoryStore.Categories.Contains(category, StringComparer.Ordinal))
+        throw new InvalidDataException($"缺少默认类别：{category}");
+
 var outputRoot = args.Length > 0 ? Path.GetFullPath(args[0]) : Path.GetFullPath("report-smoke-output");
 var first = new ImageItem
 {
