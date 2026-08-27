@@ -43,6 +43,7 @@ public sealed class AnnotationRepository
             item.ManualDecision = document.ManualDecision is "OK" or "NG"
                 ? document.ManualDecision
                 : "无";
+            item.SnOptions = NormalizeSnOptions(document.SnOptions);
             item.Annotations.Clear();
             foreach (var box in document.Annotations)
             {
@@ -98,6 +99,7 @@ public sealed class AnnotationRepository
             SourceChannels = item.SourceChannels,
             ModelDecision = item.ModelDecision,
             ManualDecision = item.ManualDecision,
+            SnOptions = item.SnOptions,
             Annotations = item.Annotations.Select(annotation => new AnnotationData
             {
                 Id = annotation.Id,
@@ -195,6 +197,17 @@ public sealed class AnnotationRepository
     private string JsonPath(ImageItem item) =>
         Path.Combine(_outputRoot, item.RelativePath + ".json");
 
+    private static ImageSnOptions? NormalizeSnOptions(ImageSnOptions? options)
+    {
+        if (options is null) return null;
+        return new ImageSnOptions(
+            string.IsNullOrWhiteSpace(options.AnchorFolderName)
+                ? "images"
+                : options.AnchorFolderName.Trim(),
+            options.StartUnderscore is null or > 0 ? options.StartUnderscore : 2,
+            options.EndUnderscore is null or > 0 ? options.EndUnderscore : 3);
+    }
+
     private sealed class AnnotationDocument
     {
         public string ImageName { get; set; } = string.Empty;
@@ -205,6 +218,7 @@ public sealed class AnnotationRepository
         public int SourceChannels { get; set; }
         public string ModelDecision { get; set; } = "无";
         public string ManualDecision { get; set; } = "无";
+        public ImageSnOptions? SnOptions { get; set; }
         public List<AnnotationData> Annotations { get; set; } = [];
     }
 

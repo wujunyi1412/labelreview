@@ -9,6 +9,7 @@ var first = new ImageItem
 {
     FullPath = @"D:\samples\images\HUIQT_U02-3_CL1265T0005_20260815T085907\image001.png",
     RelativePath = @"images\HUIQT_U02-3_CL1265T0005_20260815T085907\image001.png",
+    InputFolderName = "samples",
     ModelDecision = "NG", ManualDecision = "OK"
 };
 first.Annotations.Add(new Annotation { ReviewType = "漏检", Category = "类别1", Bounds = new Rectangle(1, 2, 30, 40) });
@@ -47,7 +48,10 @@ using (var archive = ZipFile.OpenRead(path))
     var details = ReadEntry(archive, "xl/worksheets/sheet1.xml");
     AssertContains(details, "图片SN", "图片 SN 列标题");
     AssertContains(details, ">CL1265T0005<", "默认图片 SN 提取");
-    AssertNotContains(details, "图片路径", "旧图片路径列标题");
+    AssertContains(details, "图片路径", "图片路径列标题");
+    AssertContains(details, Path.Combine(first.InputFolderName, first.RelativePath),
+        "从输入文件夹开始的图片路径");
+    AssertNotContains(details, first.FullPath, "图片路径不包含输入文件夹之前的目录");
     AssertContains(details, "2*类别1", "漏检类别合并");
     AssertContains(details, "1*类别2+1*类别3", "误检类别合并");
     AssertContains(details, ">误检+漏检<", "混合问题判定");
@@ -99,6 +103,32 @@ if (ImageSnExtractor.Extract(snSource, new ImageSnOptions("custom", 8, 9)) !=
     snSource.FullPath)
     throw new InvalidDataException("图片 SN 下划线不足时的绝对路径回退验证失败");
 
+var earlierSnItem = new ImageItem
+{
+    FullPath = snSource.FullPath,
+    RelativePath = snSource.RelativePath,
+    ModelDecision = "OK",
+    ManualDecision = "OK",
+    SnOptions = new ImageSnOptions("custom", null, 1)
+};
+var laterSnItem = new ImageItem
+{
+    FullPath = snSource.FullPath.Replace("image.png", "image2.png"),
+    RelativePath = snSource.RelativePath.Replace("image.png", "image2.png"),
+    ModelDecision = "OK",
+    ManualDecision = "OK",
+    SnOptions = new ImageSnOptions("custom", 3, null)
+};
+var perImageReportPath = new ExcelReportService().Save(
+    Path.Combine(outputRoot, "per-image-sn"), [earlierSnItem, laterSnItem],
+    new ImageSnOptions("missing", 8, 9));
+using (var archive = ZipFile.OpenRead(perImageReportPath))
+{
+    var details = ReadEntry(archive, "xl/worksheets/sheet1.xml");
+    AssertContains(details, ">HUIQT<", "较早图片保留自身 SN 规则");
+    AssertContains(details, ">20260815T085907<", "后续图片使用更新后的 SN 规则");
+}
+
 var sourcePath = Path.Combine(outputRoot, "source-for-decision-test.png");
 File.WriteAllBytes(sourcePath, [1, 2, 3]);
 var repositoryRoot = Path.Combine(outputRoot, "decision-persistence");
@@ -108,7 +138,8 @@ var decisionItem = new ImageItem
     FullPath = sourcePath,
     RelativePath = "decision-test.png",
     ModelDecision = "NG",
-    ManualDecision = "OK"
+    ManualDecision = "OK",
+    SnOptions = new ImageSnOptions("custom", null, 1)
 };
 repository.Save(decisionItem);
 var reloadedDecisionItem = new ImageItem
@@ -121,6 +152,8 @@ if (reloadedDecisionItem.ModelDecision != "NG")
     throw new InvalidDataException("模型判定结果持久化验证失败");
 if (reloadedDecisionItem.ManualDecision != "OK")
     throw new InvalidDataException("人工判定结果持久化验证失败");
+if (reloadedDecisionItem.SnOptions != decisionItem.SnOptions)
+    throw new InvalidDataException("图片 SN 规则持久化验证失败");
 
 Console.WriteLine(path);
 

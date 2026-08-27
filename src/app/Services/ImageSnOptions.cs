@@ -2,11 +2,6 @@ using LabelReviewer.Models;
 
 namespace LabelReviewer.Services;
 
-public sealed record ImageSnOptions(
-    string AnchorFolderName = "images",
-    int? StartUnderscore = 2,
-    int? EndUnderscore = 3);
-
 public static class ImageSnExtractor
 {
     public static string Extract(ImageItem image, ImageSnOptions? options = null)

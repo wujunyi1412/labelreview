@@ -55,7 +55,7 @@ public sealed class ExcelReportService
             new(1, [Text("A", "图片检测明细", 1)]),
             new(2,
             [
-                Text("A", "图片SN", 2), Text("B", "图片名称", 2),
+                Text("A", "图片SN", 2), Text("B", "图片路径", 2),
                 Text("C", "漏检标注信息", 2), Text("D", "误检标注信息", 2),
                 Text("E", "人工判定模型结果", 2),
                 Text("F", "模型判定图片结果", 2),
@@ -75,8 +75,8 @@ public sealed class ExcelReportService
             var row = (uint)index + 3;
             rows.Add(new RowData(row,
             [
-                Text("A", ImageSnExtractor.Extract(image, snOptions), 3),
-                Text("B", Path.GetFileName(image.FullPath), 3),
+                Text("A", ImageSnExtractor.Extract(image, image.SnOptions ?? snOptions), 3),
+                Text("B", ReportImagePath(image), 3),
                 Text("C", FormatAnnotations(missed), 3),
                 Text("D", FormatAnnotations(falsePositive), 3),
                 Text("E", status, statusStyle),
@@ -104,7 +104,7 @@ public sealed class ExcelReportService
         }).ToList();
         var lastDetailRow = Math.Max(3, reviewedImages.Count + 2);
         var detailStatusRange = $"'图片明细'!E3:E{lastDetailRow}";
-        var detailsNameRange = $"'图片明细'!B3:B{lastDetailRow}";
+        var detailsPathRange = $"'图片明细'!B3:B{lastDetailRow}";
         var completionRate = totalImageCount == 0
             ? 0d
             : (double)reviewedImages.Count / totalImageCount;
@@ -114,7 +114,7 @@ public sealed class ExcelReportService
             new(1, [Text("A", "图片级汇总", 1)]),
             new(3, [Text("A", "复判进度", 2), Text("B", "数量 / 比例", 2)]),
             new(4, [Text("A", "扫描图片总数", 3), Number("B", totalImageCount, 4)]),
-            new(5, [Text("A", "已复判图片数", 3), Formula("B", $"COUNTA({detailsNameRange})", reviewedImages.Count, 4)]),
+            new(5, [Text("A", "已复判图片数", 3), Formula("B", $"COUNTA({detailsPathRange})", reviewedImages.Count, 4)]),
             new(6, [Text("A", "未复判图片数", 3), Formula("B", "B4-B5", totalImageCount - reviewedImages.Count, 4)]),
             new(7, [Text("A", "复判完成率", 3), DecimalFormula("B", "IF(B4=0,0,B5/B4)", completionRate, 7)]),
             new(9, [Text("A", "已复判结果统计", 2), Text("B", "图片数量", 2)]),
@@ -128,6 +128,11 @@ public sealed class ExcelReportService
         WriteWorksheet(archive, "xl/worksheets/sheet2.xml", rows,
             [(1, 32d), (2, 18d)], mergeReference: "A1:B1", freezeRows: 3);
     }
+
+    private static string ReportImagePath(ImageItem image) =>
+        string.IsNullOrWhiteSpace(image.InputFolderName)
+            ? image.RelativePath
+            : Path.Combine(image.InputFolderName, image.RelativePath);
 
     private static void WriteBoxSummarySheet(ZipArchive archive,
         IReadOnlyList<ImageItem> images)

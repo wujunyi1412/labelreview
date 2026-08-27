@@ -27,6 +27,7 @@ public partial class MainWindow : Window
     private string? _currentBitmapPath;
     private bool _loadingModelDecision;
     private bool _loadingManualDecision;
+    private ImageSnOptions _latestImageSnOptions = new();
 
     public MainWindow()
     {
@@ -88,6 +89,7 @@ public partial class MainWindow : Window
                 _inputRoot, scopeDialog.SelectedFolders, _outputRoot);
             _currentIndex = _images.Count > 0 ? 0 : -1;
             RecreateRepository();
+            RestoreLatestSnOptions();
             if (_images.Count == 0)
             {
                 ClearCurrentImage();
@@ -265,6 +267,11 @@ public partial class MainWindow : Window
     {
         if (_currentIndex < 0 || _repository is null) return;
         var item = _images[_currentIndex];
+        var editedSnOptions = ReadImageSnOptions();
+        var snRuleWasEdited = editedSnOptions != _latestImageSnOptions;
+        _latestImageSnOptions = editedSnOptions;
+        if (item.SnOptions is null || snRuleWasEdited)
+            item.SnOptions = _latestImageSnOptions;
         var displayBitmap = string.Equals(_currentBitmapPath, item.FullPath,
             StringComparison.OrdinalIgnoreCase)
             ? _currentBitmap
@@ -281,7 +288,7 @@ public partial class MainWindow : Window
         if (_outputRoot is null) return false;
         try
         {
-            _excelReportService.Save(_outputRoot, _images, CurrentImageSnOptions);
+            _excelReportService.Save(_outputRoot, _images);
             return true;
         }
         catch (IOException)
@@ -516,16 +523,52 @@ public partial class MainWindow : Window
             .Select(FormatUnderscoreBoundary)
             .Append("末尾")
             .ToList();
-        SnStartBoundaryCombo.Text = FormatUnderscoreBoundary(2);
-        SnEndBoundaryCombo.Text = FormatUnderscoreBoundary(3);
+        ShowSnOptions(_latestImageSnOptions);
     }
 
-    private ImageSnOptions CurrentImageSnOptions => new(
+    private void RestoreLatestSnOptions()
+    {
+        _latestImageSnOptions = _images.LastOrDefault(image => image.SnOptions is not null)
+            ?.SnOptions ?? new ImageSnOptions();
+        ShowSnOptions(_latestImageSnOptions);
+    }
+
+    private void ShowSnOptions(ImageSnOptions options)
+    {
+        SnAnchorFolderTextBox.Text = options.AnchorFolderName;
+        SnStartBoundaryCombo.Text = options.StartUnderscore is int start
+            ? FormatUnderscoreBoundary(start)
+            : "开头";
+        SnEndBoundaryCombo.Text = options.EndUnderscore is int end
+            ? FormatUnderscoreBoundary(end)
+            : "末尾";
+    }
+
+    private ImageSnOptions ReadImageSnOptions() => new(
         string.IsNullOrWhiteSpace(SnAnchorFolderTextBox.Text)
             ? "images"
             : SnAnchorFolderTextBox.Text.Trim(),
         ParseUnderscoreBoundary(SnStartBoundaryCombo.Text, "开头", 2),
         ParseUnderscoreBoundary(SnEndBoundaryCombo.Text, "末尾", 3));
+
+    private void SnOptions_LostKeyboardFocus(object sender, KeyboardFocusChangedEventArgs e)
+    {
+        ApplyLatestSnOptions();
+    }
+
+    private void SnOptions_DropDownClosed(object? sender, EventArgs e) =>
+        ApplyLatestSnOptions();
+
+    private void ApplyLatestSnOptions()
+    {
+        if (_currentIndex >= 0 && _currentIndex < _images.Count && _repository is not null)
+        {
+            SaveCurrent();
+            return;
+        }
+
+        _latestImageSnOptions = ReadImageSnOptions();
+    }
 
     private static string FormatUnderscoreBoundary(int ordinal) =>
         $"第{ordinal}个下划线";

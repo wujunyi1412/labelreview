@@ -65,6 +65,7 @@
                                     </Grid.ColumnDefinitions>
                                     <TextBlock Text="定位文件夹" VerticalAlignment="Center" />
                                     <TextBox x:Name="SnAnchorFolderTextBox" Grid.Column="1" Text="images"
+                                             LostKeyboardFocus="SnOptions_LostKeyboardFocus"
                                              ToolTip="从原图片路径中找到此文件夹，并使用它的下一层目录名提取 SN" />
                                 </Grid>
                                 <Grid Margin="0,5,0,0">
@@ -75,13 +76,17 @@
                                         <ColumnDefinition Width="*" />
                                     </Grid.ColumnDefinitions>
                                     <TextBlock Text="截取范围" VerticalAlignment="Center" />
-                                    <ComboBox x:Name="SnStartBoundaryCombo" Grid.Column="1" IsEditable="True" />
+                                    <ComboBox x:Name="SnStartBoundaryCombo" Grid.Column="1" IsEditable="True"
+                                              DropDownClosed="SnOptions_DropDownClosed"
+                                              LostKeyboardFocus="SnOptions_LostKeyboardFocus" />
                                     <TextBlock Grid.Column="2" Text="到" HorizontalAlignment="Center"
                                                VerticalAlignment="Center" />
-                                    <ComboBox x:Name="SnEndBoundaryCombo" Grid.Column="3" IsEditable="True" />
+                                    <ComboBox x:Name="SnEndBoundaryCombo" Grid.Column="3" IsEditable="True"
+                                              DropDownClosed="SnOptions_DropDownClosed"
+                                              LostKeyboardFocus="SnOptions_LostKeyboardFocus" />
                                 </Grid>
                                 <TextBlock Margin="0,5,0,0" Foreground="DimGray" TextWrapping="Wrap"
-                                           Text="默认：第2个下划线到第3个下划线；也可选择“开头”或“末尾”。提取失败时写入图片绝对路径。修改后点击保存。" />
+                                           Text="每张图片会保存当时的规则；修改后仅当前及后续图片使用新规则，之前的 Excel SN 不变。留空使用默认值（images、第2个下划线到第3个下划线）。" />
                             </StackPanel>
                         </GroupBox>
                         <TextBlock x:Name="ImageName" Text="尚未加载图片"

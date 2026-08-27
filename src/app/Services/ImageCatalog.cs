@@ -16,6 +16,8 @@ public static class ImageCatalog
         string root, IEnumerable<string> includedRoots, string? excludedRoot = null)
     {
         var normalizedRoot = Path.GetFullPath(root).TrimEnd(Path.DirectorySeparatorChar);
+        var inputFolderName = Path.GetFileName(normalizedRoot);
+        if (inputFolderName.Length == 0) inputFolderName = normalizedRoot;
         var candidateExclusion = excludedRoot is null ? null
             : Path.GetFullPath(excludedRoot).TrimEnd(Path.DirectorySeparatorChar);
         var normalizedExclusion = candidateExclusion is not null &&
@@ -31,7 +33,8 @@ public static class ImageCatalog
             .Select(path => new ImageItem
             {
                 FullPath = path,
-                RelativePath = Path.GetRelativePath(root, path)
+                RelativePath = Path.GetRelativePath(root, path),
+                InputFolderName = inputFolderName
             })
             .DistinctBy(item => item.FullPath, StringComparer.OrdinalIgnoreCase)
             .OrderBy(item => item.RelativePath, StringComparer.CurrentCultureIgnoreCase)
