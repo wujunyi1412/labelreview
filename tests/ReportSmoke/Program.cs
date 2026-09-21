@@ -4,6 +4,13 @@ using System.Text;
 using LabelReviewer.Models;
 using LabelReviewer.Services;
 
+using (var okBitmap = CreateDecisionBitmap(Color.LimeGreen))
+    AssertEqual(ModelDecisionDetector.Detect(okBitmap), "OK", "绿色模型结果识别");
+using (var ngBitmap = CreateDecisionBitmap(Color.Red))
+    AssertEqual(ModelDecisionDetector.Detect(ngBitmap), "NG", "红色模型结果识别");
+using (var unknownBitmap = CreateDecisionBitmap(Color.Black))
+    AssertEqual(ModelDecisionDetector.Detect(unknownBitmap), null, "黑色背景不应产生模型结果");
+
 var categoryRoot = Path.Combine(
     args.Length > 0 ? Path.GetFullPath(args[0]) : Path.GetFullPath("report-smoke-output"),
     "category-defaults");
@@ -188,4 +195,20 @@ static void AssertNotContains(string value, string unexpected, string descriptio
 {
     if (value.Contains(unexpected, StringComparison.Ordinal))
         throw new InvalidDataException($"{description}验证失败：不应包含 {unexpected}");
+}
+
+static Bitmap CreateDecisionBitmap(Color markerColor)
+{
+    var bitmap = new Bitmap(60, 40);
+    using var graphics = Graphics.FromImage(bitmap);
+    graphics.Clear(Color.Black);
+    using var brush = new SolidBrush(markerColor);
+    graphics.FillRectangle(brush, 4, 5, 18, 12);
+    return bitmap;
+}
+
+static void AssertEqual(string? actual, string? expected, string description)
+{
+    if (!string.Equals(actual, expected, StringComparison.Ordinal))
+        throw new InvalidDataException($"{description}验证失败：期望 {expected ?? "未判定"}，实际 {actual ?? "未判定"}");
 }
